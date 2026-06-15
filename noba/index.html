@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOBA - JandeSide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0000;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.15) 2px,
+                rgba(0,0,0,0.15) 4px
+            );
+        }
+        .vignette {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.8) 100%);
+        }
+        .container {
+            position: relative;
+            z-index: 2;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        .back {
+            position: fixed;
+            top: 20px; left: 80px;
+            z-index: 3;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 0.9em;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        .back:hover { color: #ffffff; text-shadow: 0 0 15px #ff0000; }
+        .title {
+            font-size: 8em;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            position: relative;
+            animation: glitch-skew 4s infinite linear;
+            color: #ffffff;
+            font-family: 'UnifrakturMaguntia', 'Old English Text MT', 'Engravers MT', serif;
+            text-shadow:
+                0.05em 0 0 rgba(255,0,0,0.75),
+                -0.05em -0.025em 0 rgba(255,0,0,0.75),
+                0.025em 0.05em 0 rgba(255,0,0,0.75);
+            cursor: default;
+            margin-bottom: 30px;
+        }
+        .title::before, .title::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        .title::before {
+            animation: glitch-top 3s infinite linear alternate-reverse;
+            clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+            -webkit-clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+        }
+        .title::after {
+            animation: glitch-bottom 2s infinite linear alternate-reverse;
+            clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+            -webkit-clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+        }
+        @keyframes glitch-top {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 2px); }
+            40% { transform: translate(2px, -1px); }
+            60% { transform: translate(-1px, 3px); }
+            80% { transform: translate(3px, 1px); }
+            100% { transform: translate(-2px, -3px); }
+        }
+        @keyframes glitch-bottom {
+            0% { transform: translate(0); }
+            25% { transform: translate(2px, -2px); }
+            50% { transform: translate(-3px, 1px); }
+            75% { transform: translate(1px, 3px); }
+            100% { transform: translate(-2px, -1px); }
+        }
+        @keyframes glitch-skew {
+            0% { transform: skew(0deg); }
+            10% { transform: skew(1deg); }
+            20% { transform: skew(0deg); }
+            30% { transform: skew(-1deg); }
+            40% { transform: skew(0deg); }
+            50% { transform: skew(1.5deg); }
+            60% { transform: skew(0deg); }
+            70% { transform: skew(-1.5deg); }
+            80% { transform: skew(0deg); }
+            90% { transform: skew(0.5deg); }
+            100% { transform: skew(0deg); }
+        }
+        .subtitle {
+            font-size: 1em;
+            font-family: 'SimSun', '宋体', serif;
+            color: #ffffff;
+            letter-spacing: 0.3em;
+            margin: 20px 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            opacity: 0.8;
+        }
+        .subtitle .arrow {
+            font-family: 'UnifrakturMaguntia', 'Old English Text MT', serif;
+            font-size: 1.4em;
+            color: #ffffff;
+            opacity: 0.5;
+        }
+        .subtitle .arrow-left { transform: scaleX(-1); display: inline-block; }
+        .logo {
+            max-width: 30%;
+            max-height: 30vh;
+            width: auto;
+            height: auto;
+            cursor: default;
+            margin-top: 20px;
+            filter: drop-shadow(0 0 30px rgba(255,0,0,0.3));
+            animation: logo-pulse 4s ease-in-out infinite;
+        }
+        @keyframes logo-pulse {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(255,0,0,0.2)); }
+            50% { filter: drop-shadow(0 0 40px rgba(255,0,0,0.5)); }
+        }
+        .thumb-container {
+            position: fixed;
+            top: 15px; left: 15px;
+            z-index: 3;
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,0,0,0.2);
+            box-shadow: 0 0 15px rgba(255,0,0,0.15);
+            transition: all 0.3s;
+        }
+        .thumb-container:hover {
+            border-color: rgba(255,0,0,0.6);
+            box-shadow: 0 0 25px rgba(255,0,0,0.3);
+            transform: scale(1.05);
+        }
+        .thumb-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .corner-decoration {
+            position: fixed;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.15;
+            font-size: 2em;
+            color: #ff0000;
+        }
+        .corner-tl { top: 20px; left: 20px; }
+        .corner-tr { top: 20px; right: 20px; transform: rotate(90deg); }
+        .corner-bl { bottom: 20px; left: 20px; transform: rotate(-90deg); }
+        .corner-br { bottom: 20px; right: 20px; transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+    <a class="back" href="/">[ &lt; 返回 ]</a>
+
+    <canvas id="bg-canvas"></canvas>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+
+    <div class="thumb-container">
+        <img src="../assets/image/nobaloading.gif" alt="NOBA">
+    </div>
+
+    <div class="corner-decoration corner-tl">╔═</div>
+    <div class="corner-decoration corner-tr">╗═</div>
+    <div class="corner-decoration corner-bl">╚═</div>
+    <div class="corner-decoration corner-br">╝═</div>
+
+    <div class="container">
+        <div class="title" data-text="NOBA">NOBA</div>
+        <div class="subtitle">
+            <span class="arrow">➤</span>
+            <span>Not Only But Also</span>
+            <span class="arrow arrow-left">➤</span>
+        </div>
+        <img class="logo" src="../assets/image/nobalogo.webp" alt="NOBA">
+    </div>
+
+    <script>
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    class Fragment {
+        constructor() { this.reset(true); }
+        reset(init) {
+            this.x = Math.random() * W;
+            this.y = Math.random() * H;
+            this.size = Math.random() * 80 + 20;
+            this.angle = Math.random() * Math.PI * 2;
+            this.rotSpeed = (Math.random() - 0.5) * 0.02;
+            this.vx = (Math.random() - 0.5) * 0.6;
+            this.vy = (Math.random() - 0.5) * 0.6;
+            this.alpha = Math.random() * 0.2 + 0.03;
+            this.color = Math.random() > 0.6 ? '#ff0000' : '#1a0000';
+            this.points = this.genPts();
+            this.life = Math.random() * 600 + 400;
+            this.maxLife = this.life;
+            this.age = init ? Math.random() * this.life : 0;
+        }
+        genPts() {
+            const pts = [];
+            const n = Math.floor(Math.random() * 4) + 3;
+            for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+                const r = this.size * (0.3 + Math.random() * 0.7);
+                pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+            }
+            return pts;
+        }
+        update() {
+            this.age++;
+            this.x += this.vx; this.y += this.vy;
+            this.angle += this.rotSpeed;
+            this.vx += (Math.random() - 0.5) * 0.02;
+            this.vy += (Math.random() - 0.5) * 0.02;
+            this.vx *= 0.995; this.vy *= 0.995;
+            if (this.age > this.life || this.x < -200 || this.x > W + 200 || this.y < -200 || this.y > H + 200) this.reset(false);
+        }
+        draw() {
+            const lr = 1 - (this.age / this.maxLife);
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.globalAlpha = this.alpha * lr;
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 1;
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.moveTo(this.points[0].x, this.points[0].y);
+            for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+    }
+
+    class Crack {
+        constructor() { this.reset(); }
+        reset() {
+            this.x = Math.random() * W; this.y = Math.random() * H;
+            this.segs = []; this.maxS = Math.floor(Math.random() * 12) + 8;
+            this.prog = 0; this.grow = Math.random() * 0.3 + 0.1;
+            this.alpha = Math.random() * 0.2 + 0.05;
+            this.branches = [];
+            let cx = this.x, cy = this.y;
+            for (let i = 0; i < this.maxS; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const l = Math.random() * 50 + 15;
+                const ex = cx + Math.cos(a) * l, ey = cy + Math.sin(a) * l;
+                this.segs.push({ sx: cx, sy: cy, ex, ey });
+                cx = ex; cy = ey;
+                if (Math.random() > 0.6 && this.branches.length < 4) {
+                    this.branches.push({ sx: cx, sy: cy, a: a + (Math.random() - 0.5) * 1.5, l: Math.random() * 25 + 8 });
+                }
+            }
+        }
+        update() { this.prog = Math.min(this.prog + this.grow, this.segs.length); }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 1;
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 4;
+            for (let i = 0; i < Math.floor(this.prog) && i < this.segs.length; i++) {
+                const s = this.segs[i];
+                ctx.beginPath(); ctx.moveTo(s.sx, s.sy); ctx.lineTo(s.ex, s.ey); ctx.stroke();
+            }
+            for (const b of this.branches) {
+                if (this.prog > this.segs.length * 0.7) {
+                    ctx.beginPath();
+                    ctx.moveTo(b.sx, b.sy);
+                    ctx.lineTo(b.sx + Math.cos(b.a) * b.l, b.sy + Math.sin(b.a) * b.l);
+                    ctx.stroke();
+                }
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+    }
+
+    class GlitchBlock {
+        constructor() { this.reset(); }
+        reset() {
+            this.x = Math.random() * W; this.y = Math.random() * H;
+            this.w = Math.random() * 25 + 4; this.h = Math.random() * 3 + 1;
+            this.speed = Math.random() * 2 + 0.5;
+            this.alpha = Math.random() * 0.1 + 0.03;
+            this.color = Math.random() > 0.5 ? '#ff0000' : '#550000';
+        }
+        update() { this.y += this.speed * 2; this.x += (Math.random() - 0.5) * 1; if (this.y > H + 10) this.reset(); }
+        draw() {
+            ctx.save(); ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 10;
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+            ctx.shadowBlur = 0; ctx.restore();
+        }
+    }
+
+    class TextFragment {
+        constructor() {
+            this.chars = ['#', '$', '%', '&', '@', '!', '?', '/', '\\', '>', '<', '~', '+', '=', '|', ':'];
+            this.reset();
+        }
+        reset() {
+            let len = Math.floor(Math.random() * 3) + 1;
+            this.text = '';
+            for (let i = 0; i < len; i++) this.text += this.chars[Math.floor(Math.random() * this.chars.length)];
+            this.x = Math.random() * W; this.y = Math.random() * H;
+            this.vx = (Math.random() - 0.5) * 0.4; this.vy = (Math.random() - 0.5) * 0.4;
+            this.alpha = Math.random() * 0.1 + 0.03;
+            this.size = Math.random() * 12 + 8;
+            this.life = Math.random() * 400 + 200; this.age = 0;
+        }
+        update() {
+            this.age++; this.x += this.vx; this.y += this.vy;
+            if (this.age > this.life || this.x < -50 || this.x > W + 50 || this.y < -50 || this.y > H + 50) this.reset();
+        }
+        draw() {
+            const lr = 1 - (this.age / this.life);
+            ctx.save(); ctx.globalAlpha = this.alpha * lr;
+            ctx.fillStyle = '#ff0000'; ctx.font = this.size + "px 'Courier New', monospace";
+            ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 6;
+            ctx.fillText(this.text, this.x, this.y);
+            ctx.shadowBlur = 0; ctx.restore();
+        }
+    }
+
+    // 背景线条 - 慢速持续移动，不重置位置
+    class NetworkLine {
+        constructor() {
+            this.x1 = Math.random() * W; this.y1 = Math.random() * H;
+            this.x2 = Math.random() * W; this.y2 = Math.random() * H;
+            this.alpha = Math.random() * 0.08 + 0.02;
+            this.vx1 = (Math.random() - 0.5) * 0.08;
+            this.vy1 = (Math.random() - 0.5) * 0.08;
+            this.vx2 = (Math.random() - 0.5) * 0.08;
+            this.vy2 = (Math.random() - 0.5) * 0.08;
+        }
+        update() {
+            this.x1 += this.vx1; this.y1 += this.vy1;
+            this.x2 += this.vx2; this.y2 += this.vy2;
+            // 超出边界则从另一侧出现，持续移动
+            if (this.x1 < -100) this.x1 = W + 100;
+            if (this.x1 > W + 100) this.x1 = -100;
+            if (this.y1 < -100) this.y1 = H + 100;
+            if (this.y1 > H + 100) this.y1 = -100;
+            if (this.x2 < -100) this.x2 = W + 100;
+            if (this.x2 > W + 100) this.x2 = -100;
+            if (this.y2 < -100) this.y2 = H + 100;
+            if (this.y2 > H + 100) this.y2 = -100;
+        }
+        draw() {
+            ctx.save(); ctx.globalAlpha = this.alpha;
+            ctx.strokeStyle = '#330000'; ctx.lineWidth = 0.5;
+            ctx.beginPath(); ctx.moveTo(this.x1, this.y1); ctx.lineTo(this.x2, this.y2); ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    const fragments = [], cracks = [], glitchBlocks = [], textFrags = [], networks = [];
+    for (let i = 0; i < 20; i++) fragments.push(new Fragment());
+    for (let i = 0; i < 5; i++) cracks.push(new Crack());
+    for (let i = 0; i < 25; i++) glitchBlocks.push(new GlitchBlock());
+    for (let i = 0; i < 12; i++) textFrags.push(new TextFragment());
+    for (let i = 0; i < 30; i++) networks.push(new NetworkLine());
+
+    let frame = 0;
+    
+    // --- 数据流 ---
+    const streamCols = [];
+    const streamCount = Math.floor(W / 20);
+    const streamChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+-=[]{}|;:,.<>?/';
+    for (let i = 0; i < streamCount; i++) {
+        streamCols.push({
+            x: i * 20 + Math.random() * 20,
+            y: Math.random() * H,
+            speed: Math.random() * 2 + 1,
+            len: Math.floor(Math.random() * 15) + 8,
+            chars: []
+        });
+        for (let j = 0; j < 30; j++) {
+            streamCols[i].chars.push(streamChars[Math.floor(Math.random() * streamChars.length)]);
+        }
+    }
+    
+    function drawDataStream() {
+        ctx.save();
+        ctx.globalAlpha = 0.2;
+        ctx.font = '14px "Courier New", monospace';
+        ctx.fillStyle = '#ffffff';
+        for (const col of streamCols) {
+            col.y += col.speed * 0.2;
+            if (col.y > H + col.len * 16) {
+                col.y = -col.len * 16;
+                col.speed = Math.random() * 2 + 1;
+            }
+            for (let j = 0; j < col.len; j++) {
+                const yPos = col.y - j * 14;
+                if (yPos > -10 && yPos < H + 10) {
+                    const idx = Math.floor((frame + j) % col.chars.length);
+                    ctx.fillText(col.chars[idx], col.x, yPos);
+                }
+            }
+        }
+        ctx.restore();
+    }
+
+    function animate() {
+        frame++;
+        drawDataStream();
+        ctx.fillStyle = 'rgba(10, 0, 0, 0.3)';
+        ctx.fillRect(0, 0, W, H);
+        for (const n of networks) { n.update(); n.draw(); }
+        for (const f of fragments) { f.update(); f.draw(); }
+        for (const c of cracks) { c.update(); c.draw(); }
+        for (const g of glitchBlocks) { g.update(); g.draw(); }
+        for (const t of textFrags) { t.update(); t.draw(); }
+        if (frame % 180 === 0) { cracks.push(new Crack()); if (cracks.length > 10) cracks.shift(); }
+        if (Math.random() > 0.997) {
+            ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = '#ff0000';
+            ctx.fillRect(0, Math.random() * H, W, Math.random() * 40 + 3); ctx.restore();
+        }
+        if (Math.random() > 0.998) {
+            ctx.save(); ctx.globalAlpha = 0.03; ctx.fillStyle = '#ff0000';
+            ctx.fillRect(0, 0, W, H); ctx.restore();
+        }
+        requestAnimationFrame(animate);
+    }
+    animate();
+    </script>
+</body>
+</html>

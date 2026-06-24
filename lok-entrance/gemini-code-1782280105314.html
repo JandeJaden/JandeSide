@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoK-Entrance</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        /* 核心暗黑与暗金配色定制 */
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        /* 自定义白色边框输入框与文本域 */
+        input, textarea {
+            background-color: #0f0f0f;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            border-radius: 4px;
+            padding: 0.375rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        input:focus, textarea:focus {
+            outline: 2px solid #846522;
+            background-color: #151515;
+        }
+        /* 暗金色按钮样式 */
+        .btn-gold {
+            background-color: #846522;
+            color: #ffffff;
+            border: 1px solid #9a7b36;
+            transition: all 0.2s ease;
+        }
+        .btn-gold:hover {
+            background-color: #9a7b36;
+        }
+        .btn-gold:disabled {
+            background-color: #333333;
+            border-color: #444444;
+            color: #777777;
+            cursor: not-allowed;
+        }
+        /* 拖拽中样式 */
+        .dragging {
+            opacity: 0.3;
+            border: 1px dashed #846522 !important;
+            background-color: #0a0a0a !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 pb-24 select-none">
+
+    <div class="max-w-3xl mx-auto">
+        <!-- 顶部标题 -->
+        <header class="border-b border-white pb-3 mb-6">
+            <h1 class="text-2xl font-bold tracking-wider text-center sm:text-left">LoK-Entrance</h1>
+        </header>
+
+        <!-- 角色列表容器（纵向排列） -->
+        <div id="characterList" class="space-y-6">
+            <!-- 动态渲染角色卡片 -->
+        </div>
+        
+        <div id="emptyTip" class="text-center text-gray-500 my-16 style-fallback" style="display: none;">
+            暂无记录。点击右侧快捷栏展开按钮开始添加。
+        </div>
+    </div>
+
+    <!-- 全体化侧边快捷栏 -->
+    <div id="shortcutBar" class="fixed right-0 top-24 z-50 flex items-start transition-transform duration-300" style="transform: translateX(200px);">
+        <!-- 展开/收起 箭头按钮 -->
+        <button onclick="toggleSidebar()" class="btn-gold p-2 rounded-l-md border-r-0 flex items-center justify-center cursor-pointer h-10 w-8 shadow-lg">
+            <span id="sidebarArrow" class="inline-block transition-transform duration-200">◀</span>
+        </button>
+        <!-- 快捷操作面板 -->
+        <div class="bg-[#0a0a0a] border border-white p-4 w-[200px] rounded-bl-md shadow-2xl flex flex-col gap-4 text-sm">
+            <div class="text-xs text-gray-400 font-bold border-b border-gray-800 pb-1">全局控制</div>
+            <button onclick="addCharacter()" class="btn-gold w-full py-2 text-xs rounded font-medium">➕ 添加角色</button>
+            <button onclick="openImportModal()" class="btn-gold w-full py-2 text-xs rounded font-medium">📥 导入文本</button>
+            <button onclick="exportAll()" class="btn-gold w-full py-2 text-xs rounded font-medium">📤 导出全部</button>
+            <button onclick="clearAll()" class="bg-red-950 hover:bg-red-900 border border-red-700 text-white w-full py-1.5 text-xs rounded">清空数据</button>
+            
+            <div class="text-xs text-gray-400 font-bold border-b border-gray-800 pt-2 pb-1">当前选中角色</div>
+            <div id="selectedNameTip" class="text-xs text-amber-500 italic truncate">未选中</div>
+            <button id="btnExportSingle" onclick="exportSelected()" class="btn-gold w-full py-1.5 text-xs rounded" disabled>导出此角色</button>
+            <button id="btnDeleteSingle" onclick="deleteSelected()" class="bg-zinc-900 hover:bg-zinc-800 border border-gray-600 text-red-400 w-full py-1.5 text-xs rounded" disabled>删除角色</button>
+        </div>
+    </div>
+
+    <!-- 导入弹窗 -->
+    <div id="importModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style="display: none;">
+        <div class="bg-[#0f0f0f] border border-white rounded-lg w-full max-w-lg p-5">
+            <h3 class="text-md font-bold mb-2 tracking-wide">导入符合格式的文本 (健壮智能分隔版)</h3>
+            <textarea id="importTextarea" class="w-full h-64 font-mono p-3 mb-4 text-xs" placeholder="#角色名字 英文名&#10;&#10;HP100&#10;MP50&#10;...&#10;&#10;重击□第一段动作伤害。&#10;第二段产生击退。&#10;&#10;冥想⎔提升自身护盾值。"></textarea>
+            <div class="flex justify-end gap-2 text-xs">
+                <button onclick="closeImportModal()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900">取消</button>
+                <button onclick="submitImport()" class="px-4 py-2 btn-gold rounded">确认导入</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let characters = [];
+        let selectedId = null;
+        let isSidebarOpen = false;
+        
+        const colorMaps = {
+            white: '#a1a1aa',
+            red: '#ef4444',
+            blue: '#3b82f6',
+            purple: '#a855f7',
+            green: '#10b981'
+        };
+        const colorOrder = ['white', 'red', 'blue', 'purple', 'green'];
+
+        let draggedCharId = null;
+        let draggedSkillIndex = null;
+
+        window.onload = function() {
+            const localData = localStorage.getItem('lok_entrance_data');
+            if (localData) {
+                try { 
+                    characters = JSON.parse(localData); 
+                    if (!Array.isArray(characters)) { characters = []; }
+                    
+                    characters.forEach(c => {
+                        if (c && !c.skills) {
+                            c.skills = [];
+                            if (c.passive) c.skills.push({ type: 'passive', symbol: '⎔', name: c.passive.name||'', desc: c.passive.desc||'', color: 'white' });
+                            if (c.normal) c.skills.push({ type: 'normal', symbol: '□', name: c.normal.name||'', desc: c.normal.desc||'', color: 'white' });
+                            if (c.actives) {
+                                c.actives.forEach(act => {
+                                    if(act) c.skills.push({ type: 'active', symbol: 'ᐅ', name: act.name||'', desc: act.desc||'', color: 'white' });
+                                });
+                            }
+                            delete c.passive; delete c.normal; delete c.actives;
+                        }
+                    });
+                    autoSave();
+                } catch(e) { 
+                    characters = []; 
+                }
+            }
+            if(characters.length > 0) selectedId = characters[0].id;
+            renderList();
+            updateSidebarUI();
+        }
+
+        function autoSave() {
+            localStorage.setItem('lok_entrance_data', JSON.stringify(characters));
+        }
+
+        function toggleSidebar() {
+            const bar = document.getElementById('shortcutBar');
+            const arrow = document.getElementById('sidebarArrow');
+            isSidebarOpen = !isSidebarOpen;
+            if (isSidebarOpen) {
+                bar.style.transform = 'translateX(0)';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                bar.style.transform = 'translateX(200px)';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function selectCharacter(id) {
+            selectedId = id;
+            updateSidebarUI();
+            characters.forEach(c => {
+                const card = document.getElementById(`card-${c.id}`);
+                if(card) {
+                    if(c.id === id) {
+                        card.style.borderColor = '#9a7b36';
+                        card.style.boxShadow = '0 0 12px rgba(132, 101, 34, 0.4)';
+                    } else {
+                        card.style.borderColor = '#ffffff';
+                        card.style.boxShadow = 'none';
+                    }
+                }
+            });
+        }
+
+        function updateSidebarUI() {
+            const tip = document.getElementById('selectedNameTip');
+            const btnExport = document.getElementById('btnExportSingle');
+            const btnDelete = document.getElementById('btnDeleteSingle');
+            
+            const curChar = characters.find(c => c.id === selectedId);
+            if(curChar) {
+                tip.innerText = curChar.name || curChar.engName || '未命名角色';
+                tip.classList.remove('italic', 'text-gray-500');
+                tip.classList.add('text-amber-500');
+                btnExport.disabled = false;
+                btnDelete.disabled = false;
+            } else {
+                tip.innerText = '未选中';
+                tip.classList.add('italic', 'text-gray-500');
+                tip.classList.remove('text-amber-500');
+                btnExport.disabled = true;
+                btnDelete.disabled = true;
+            }
+        }
+
+        function addCharacter() {
+            const newChar = {
+                id: 'char_' + Date.now() + Math.random().toString(36).substr(2, 4),
+                name: '', engName: '',
+                attrs: { HP:'', MP:'', ATK:'', DEF:'', RES:'', RAN:'', MOV:'', Cls:'', Orig:'' },
+                skills: [
+                    { type: 'passive', symbol: '⎔', name: '', desc: '', color: 'white' },
+                    { type: 'normal', symbol: '□', name: '', desc: '', color: 'white' },
+                    { type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' },
+                    { type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' }
+                ]
+            };
+            characters.push(newChar);
+            selectedId = newChar.id;
+            renderList();
+            autoSave();
+            updateSidebarUI();
+            const el = document.getElementById(`card-${newChar.id}`);
+            if(el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function adjustTextareaHeight(el) {
+            if(!el) return;
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+        }
+
+        function cycleColor(charId, skillIdx) {
+            const c = characters.find(item => item.id === charId);
+            if(c && c.skills && c.skills[skillIdx]) {
+                const curColor = c.skills[skillIdx].color || 'white';
+                let nextIdx = (colorOrder.indexOf(curColor) + 1) % colorOrder.length;
+                c.skills[skillIdx].color = colorOrder[nextIdx];
+                renderList();
+                autoSave();
+            }
+        }
+
+        function handleDragStart(e, charId, index) {
+            draggedCharId = charId;
+            draggedSkillIndex = index;
+            e.currentTarget.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+        function handleDrop(e, targetCharId, targetIndex) {
+            e.preventDefault();
+            if (draggedCharId !== targetCharId || draggedSkillIndex === targetIndex) return;
+            
+            const c = characters.find(item => item.id === targetCharId);
+            if (!c || !c.skills) return;
+            
+            const movedItem = c.skills.splice(draggedSkillIndex, 1)[0];
+            c.skills.splice(targetIndex, 0, movedItem);
+            
+            renderList();
+            autoSave();
+        }
+        function handleDragEnd(e) {
+            e.currentTarget.classList.remove('dragging');
+        }
+
+        function renderList() {
+            const container = document.getElementById('characterList');
+            const tip = document.getElementById('emptyTip');
+            if(!container) return;
+            container.innerHTML = '';
+
+            if (!characters || characters.length === 0) {
+                if(tip) tip.style.display = 'block';
+                return;
+            } else {
+                if(tip) tip.style.display = 'none';
+            }
+
+            characters.forEach(char => {
+                if(!char) return;
+                const isSelected = char.id === selectedId;
+                const card = document.createElement('div');
+                card.id = `card-${char.id}`;
+                card.className = `p-5 rounded border bg-[#050505] transition-all duration-200`;
+                card.style.borderColor = isSelected ? '#9a7b36' : '#ffffff';
+                card.style.boxShadow = isSelected ? '0 0 12px rgba(132, 101, 34, 0.4)' : 'none';
+                
+                card.addEventListener('focusin', () => selectCharacter(char.id));
+                card.addEventListener('click', () => selectCharacter(char.id));
+
+                const nameVal = char.name || '';
+                const engNameVal = char.engName || '';
+
+                const row1 = `
+                    <div class="flex gap-3 mb-5">
+                        <input type="text" placeholder="名字" class="w-1/2 font-bold text-base" value="${nameVal}" oninput="updateField('${char.id}', 'name', this.value)">
+                        <input type="text" placeholder="英文名" class="w-1/2 font-mono text-base" value="${engNameVal}" oninput="updateField('${char.id}', 'engName', this.value)">
+                    </div>
+                `;
+
+                const attrKeys = ['HP', 'MP', 'ATK', 'DEF', 'RES', 'RAN', 'MOV', 'Cls', 'Orig'];
+                let attrGrid = `<div class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2 mb-5">`;
+                attrKeys.forEach(k => {
+                    const attrVal = (char.attrs && char.attrs[k]) ? char.attrs[k] : '';
+                    attrGrid += `
+                        <div class="flex flex-col border border-zinc-800 rounded p-1 bg-black">
+                            <span class="text-[10px] text-gray-400 font-bold tracking-tight text-center">${k}</span>
+                            <input type="text" class="w-full text-center border-0 p-0 text-sm bg-transparent focus:outline-none" value="${attrVal}" oninput="updateAttr('${char.id}', '${k}', this.value)">
+                        </div>
+                    `;
+                });
+                attrGrid += `</div>`;
+
+                let skillsDiv = `<div class="space-y-2.5">`;
+                const charSkills = char.skills || [];
+                const activeSkillsCount = charSkills.filter(s => s && s.type === 'active').length;
+                
+                charSkills.forEach((skill, sIdx) => {
+                    if(!skill) return;
+                    const hexColor = colorMaps[skill.color || 'white'] || '#a1a1aa';
+                    const skName = skill.name || '';
+                    const skDesc = skill.desc || '';
+                    
+                    skillsDiv += `
+                        <div class="flex items-start gap-2 group/row transition-all duration-150" 
+                             draggable="true"
+                             ondragstart="handleDragStart(event, '${char.id}', ${sIdx})"
+                             ondragover="handleDragOver(event)"
+                             ondrop="handleDrop(event, '${char.id}', ${sIdx})"
+                             ondragend="handleDragEnd(event)">
+                            
+                            <div class="w-28 shrink-0 flex items-center gap-1 cursor-grab active:cursor-grabbing bg-[#0f0f0f] border border-white rounded px-1.5 py-1">
+                                <span class="text-zinc-500 select-none text-xs font-mono">⋮⋮</span>
+                                <input type="text" placeholder="技能" class="w-full text-center bg-transparent border-0 p-0 text-sm focus:outline-none font-medium" value="${skName}" 
+                                       oninput="updateSkillData('${char.id}', ${sIdx}, 'name', this.value)"
+                                       onmousedown="event.stopPropagation()">
+                            </div>
+                            
+                            <button type="button" onclick="cycleColor('${char.id}', ${sIdx}); event.stopPropagation();" 
+                                    style="color: ${hexColor};"
+                                    class="text-xl font-bold w-6 text-center block select-none h-[34px] flex items-center justify-center cursor-pointer transition-colors hover:brightness-125" 
+                                    title="点击更改符号颜色">
+                                ${skill.symbol}
+                            </button>
+                            
+                            <textarea placeholder="描述" class="flex-1 resize-none overflow-hidden min-h-[34px] py-1.5 leading-relaxed" rows="1"
+                                      oninput="adjustTextareaHeight(this); updateSkillData('${char.id}', ${sIdx}, 'desc', this.value)"
+                                      onmousedown="event.stopPropagation()">${skDesc}</textarea>
+                            
+                            ${skill.type === 'active' && activeSkillsCount > 2 ? `
+                                <button onclick="deleteSkillSlot('${char.id}', ${sIdx}); event.stopPropagation();" class="text-gray-500 hover:text-red-500 text-xs h-[34px] px-1 cursor-pointer flex items-center">✕</button>
+                            ` : '<div class="w-[18px]"></div>'}
+                        </div>
+                    `;
+                });
+
+                if (activeSkillsCount < 6) {
+                    skillsDiv += `
+                        <button onclick="addActiveSlot('${char.id}'); event.stopPropagation();" class="btn-gold px-2 py-0.5 text-[11px] rounded mt-1 cursor-pointer">
+                            添加 ᐅ
+                        </button>
+                    `;
+                }
+                skillsDiv += `</div>`;
+
+                card.innerHTML = row1 + attrGrid + skillsDiv;
+                container.appendChild(card);
+            });
+
+            document.querySelectorAll('textarea').forEach(el => {
+                if(el && el.id !== 'importTextarea') adjustTextareaHeight(el);
+            });
+        }
+
+        function updateField(id, field, value) {
+            const c = characters.find(item => item.id === id);
+            if(c) { 
+                c[field] = value; 
+                autoSave(); 
+                if(field === 'name') updateSidebarUI();
+            }
+        }
+        function updateAttr(id, key, value) {
+            const c = characters.find(item => item.id === id);
+            if(c && c.attrs) { c.attrs[key] = value; autoSave(); }
+        }
+        function updateSkillData(id, index, field, value) {
+            const c = characters.find(item => item.id === id);
+            if(c && c.skills && c.skills[index]) { c.skills[index][field] = value; autoSave(); }
+        }
+        function addActiveSlot(id) {
+            const c = characters.find(item => item.id === id);
+            if(c && c.skills) {
+                const activeCount = c.skills.filter(s => s && s.type === 'active').length;
+                if(activeCount < 6) {
+                    c.skills.push({ type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' });
+                    renderList();
+                    autoSave();
+                }
+            }
+        }
+        function deleteSkillSlot(id, index) {
+            const c = characters.find(item => item.id === id);
+            if(c && c.skills) {
+                c.skills.splice(index, 1);
+                renderList();
+                autoSave();
+            }
+        }
+
+        function deleteSelected() {
+            if(!selectedId) return;
+            if(confirm('确定要删除选中的角色吗？')) {
+                characters = characters.filter(c => c && c.id !== selectedId);
+                selectedId = characters.length > 0 ? characters[0].id : null;
+                renderList();
+                autoSave();
+                updateSidebarUI();
+            }
+        }
+
+        function clearAll() {
+            if(confirm('警告：这会清空系统内的所有数据！')) {
+                characters = [];
+                selectedId = null;
+                renderList();
+                autoSave();
+                updateSidebarUI();
+            }
+        }
+
+        function buildText(char) {
+            if(!char) return '';
+            let txt = `#${char.name || ''} ${char.engName || ''}\n\n`;
+            const attrKeys = ['HP', 'MP', 'ATK', 'DEF', 'RES', 'RAN', 'MOV', 'Cls', 'Orig'];
+            attrKeys.forEach(k => {
+                const val = (char.attrs && char.attrs[k]) ? char.attrs[k] : '';
+                txt += `${k}${val}\n`;
+            });
+            txt += '\n';
+            
+            const sList = char.skills || [];
+            sList.forEach(skill => {
+                if(!skill) return;
+                txt += `${skill.name || ''}${skill.symbol}${skill.desc || ''}\n`;
+            });
+            return txt;
+        }
+
+        function downloadTxt(filename, text) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function exportSelected() {
+            const c = characters.find(item => item.id === selectedId);
+            if(c) downloadTxt(`${c.name || '未命名'}.txt`, buildText(c));
+        }
+
+        function exportAll() {
+            if(!characters || characters.length === 0) return alert('没有可导出的数据');
+            let allText = characters.map(c => buildText(c)).join('\n---\n\n');
+            downloadTxt(`LoK_All_Roles.txt`, allText);
+        }
+
+        function openImportModal() { 
+            const modal = document.getElementById('importModal');
+            if(modal) modal.style.display = 'flex'; 
+        }
+        
+        function closeImportModal() { 
+            const modal = document.getElementById('importModal');
+            if(modal) modal.style.display = 'none'; 
+            const tx = document.getElementById('importTextarea');
+            if(tx) tx.value = ''; 
+        }
+        
+        // 🌟 核心升级算法：最早特征码定位导入逻辑 🌟
+        function submitImport() {
+            const tx = document.getElementById('importTextarea');
+            if(!tx) return;
+            const rawText = tx.value;
+            if(!rawText.trim()) return;
+
+            const blocks = rawText.split(/\n---\n/).map(b => b.trim()).filter(b => b.length > 0);
+            let count = 0;
+            let lastId = null;
+
+            blocks.forEach(block => {
+                const lines = block.split('\n').map(l => l.trim());
+                if(lines.length === 0) return;
+
+                const newChar = {
+                    id: 'char_' + Date.now() + Math.random().toString(36).substr(2, 4) + count,
+                    name: '', engName: '',
+                    attrs: { HP:'', MP:'', ATK:'', DEF:'', RES:'', RAN:'', MOV:'', Cls:'', Orig:'' },
+                    skills: []
+                };
+
+                let lastSkill = null; 
+
+                lines.forEach(line => {
+                    if (line === '') {
+                        if (lastSkill) { lastSkill.desc += '\n'; }
+                        return;
+                    }
+
+                    if (line.startsWith('#')) {
+                        const nameString = line.substring(1).trim();
+                        const spaceIndex = nameString.indexOf(' ');
+                        if(spaceIndex !== -1) {
+                            newChar.name = nameString.substring(0, spaceIndex);
+                            newChar.engName = nameString.substring(spaceIndex + 1);
+                        } else {
+                            newChar.name = nameString;
+                        }
+                    } else {
+                        // 🌟 升级：寻找此行中最先出现的那个合法特征码作为真正分隔符
+                        let symbol = '';
+                        let firstIdx = -1;
+                        const validSymbols = ['⎔', '□', 'ᐅ'];
+                        
+                        for (let sym of validSymbols) {
+                            let symIdx = line.indexOf(sym);
+                            if (symIdx !== -1) {
+                                // 谁的位置最靠前，谁就是本行的技能切割点
+                                if (firstIdx === -1 || symIdx < firstIdx) {
+                                    firstIdx = symIdx;
+                                    symbol = sym;
+                                }
+                            }
+                        }
+
+                        if (symbol) {
+                            let name = line.substring(0, firstIdx).trim();
+                            const desc = line.substring(firstIdx + 1).trim();
+                            
+                            if (name.startsWith('被动')) name = name.replace('被动', '').trim();
+                            if (name.startsWith('普攻')) name = name.replace('普攻', '').trim();
+                            name = name.replace(/^[壹贰叁肆伍陆柒捌]*/, '').trim();
+
+                            let type = 'active';
+                            if (symbol === '⎔') type = 'passive';
+                            if (symbol === '□') type = 'normal';
+
+                            const newSkill = {
+                                type: type,
+                                symbol: symbol,
+                                name: name,
+                                desc: desc,
+                                color: 'white'
+                            };
+                            newChar.skills.push(newSkill);
+                            lastSkill = newSkill; 
+                        } else {
+                            const attrKeys = ['HP', 'MP', 'ATK', 'DEF', 'RES', 'RAN', 'MOV', 'Cls', 'Orig'];
+                            let isAttr = false;
+                            for(let k of attrKeys) {
+                                if(line.startsWith(k)) {
+                                    newChar.attrs[k] = line.substring(k.length).trim();
+                                    isAttr = true;
+                                    break;
+                                }
+                            }
+                            if (!isAttr && lastSkill) {
+                                if(lastSkill.desc.endsWith('\n')) {
+                                    lastSkill.desc += line;
+                                } else {
+                                    lastSkill.desc += '\n' + line;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                if (newChar.skills) {
+                    newChar.skills.forEach(s => {
+                        if (s.desc) s.desc = s.desc.trim();
+                    });
+                }
+
+                // 缺少的框架槽全部以 ᐅ 填充 
+                if (newChar.skills.length === 0) {
+                    newChar.skills = [
+                        { type: 'passive', symbol: '⎔', name: '', desc: '', color: 'white' },
+                        { type: 'normal', symbol: '□', name: '', desc: '', color: 'white' },
+                        { type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' },
+                        { type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' }
+                    ];
+                } else {
+                    while (newChar.skills.length < 4) {
+                        newChar.skills.push({ type: 'active', symbol: 'ᐅ', name: '', desc: '', color: 'white' });
+                    }
+                }
+
+                characters.push(newChar);
+                lastId = newChar.id;
+                count++;
+            });
+
+            if(count > 0) selectedId = lastId;
+            renderList();
+            autoSave();
+            updateSidebarUI();
+            closeImportModal();
+            alert(`成功导入 ${count} 个角色记录`);
+        }
+    </script>
+</body>
+</html>

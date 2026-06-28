@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LoK-Entrance</title>
-    <!-- 引入 Tailwind CSS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+   <!-- 引入 Tailwind CSS -->
+   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- 引入 html2canvas（导出图片用） -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         /* 核心暗黑与暗金配色定制 */
         body {
@@ -42,6 +44,25 @@
             color: #777777;
             cursor: not-allowed;
         }
+        #exportTextarea {
+            height: 280px !important;
+            min-height: 200px !important;
+            overflow-y: scroll !important;
+            scrollbar-width: auto !important;
+        }
+        #exportTextarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        #exportTextarea::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        #exportTextarea::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+        #exportTextarea::-webkit-scrollbar-thumb:hover {
+            background: #888;
+        }
         /* 拖拽中样式 */
         .dragging {
             opacity: 0.3;
@@ -77,14 +98,13 @@
         <!-- 快捷操作面板 -->
         <div class="bg-[#0a0a0a] border border-white p-4 w-[200px] rounded-bl-md shadow-2xl flex flex-col gap-4 text-sm">
             <div class="text-xs text-gray-400 font-bold border-b border-gray-800 pb-1">全局控制</div>
-            <button onclick="addCharacter()" class="btn-gold w-full py-2 text-xs rounded font-medium">➕ 添加角色</button>
+           <button onclick="addCharacter()" class="btn-gold w-full py-2 text-xs rounded font-medium">➕ 添加角色</button>
             <button onclick="openImportModal()" class="btn-gold w-full py-2 text-xs rounded font-medium">📥 导入文本</button>
-            <button onclick="exportAll()" class="btn-gold w-full py-2 text-xs rounded font-medium">📤 导出全部</button>
             <button onclick="clearAll()" class="bg-red-950 hover:bg-red-900 border border-red-700 text-white w-full py-1.5 text-xs rounded">清空数据</button>
             
             <div class="text-xs text-gray-400 font-bold border-b border-gray-800 pt-2 pb-1">当前选中角色</div>
             <div id="selectedNameTip" class="text-xs text-amber-500 italic truncate">未选中</div>
-            <button id="btnExportSingle" onclick="exportSelected()" class="btn-gold w-full py-1.5 text-xs rounded" disabled>导出此角色</button>
+            <button id="btnExportSingle" onclick="openExportModal()" class="btn-gold w-full py-1.5 text-xs rounded" disabled>导出此角色</button>
             <button id="btnDeleteSingle" onclick="deleteSelected()" class="bg-zinc-900 hover:bg-zinc-800 border border-gray-600 text-red-400 w-full py-1.5 text-xs rounded" disabled>删除角色</button>
         </div>
     </div>
@@ -92,16 +112,54 @@
     <!-- 导入弹窗 -->
     <div id="importModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style="display: none;">
         <div class="bg-[#0f0f0f] border border-white rounded-lg w-full max-w-lg p-5">
-            <h3 class="text-md font-bold mb-2 tracking-wide">导入符合格式的文本 (健壮智能分隔版)</h3>
-            <textarea id="importTextarea" class="w-full h-64 font-mono p-3 mb-4 text-xs" placeholder="#角色名字 英文名&#10;&#10;HP100&#10;MP50&#10;...&#10;&#10;重击□第一段动作伤害。&#10;第二段产生击退。&#10;&#10;冥想⎔提升自身护盾值。"></textarea>
+            <h3 class="text-md font-bold mb-2 tracking-wide">在此粘贴文本</h3>
+                            <textarea id="importTextarea" class="w-full h-64 font-mono p-3 mb-4 text-xs" placeholder="#名字 Name&#10;HP&#10;MP&#10;技能名ᐅ描述&#10;……"></textarea>
             <div class="flex justify-end gap-2 text-xs">
                 <button onclick="closeImportModal()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900">取消</button>
                 <button onclick="submitImport()" class="px-4 py-2 btn-gold rounded">确认导入</button>
             </div>
+       </div>
+   </div>
+
+    <!-- 导出弹窗 -->
+    <div id="exportModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style="display: none;">
+        <div class="bg-[#0f0f0f] border border-white rounded-lg w-full max-w-2xl p-5">
+            <h3 class="text-md font-bold mb-2 tracking-wide">导出角色信息</h3>
+            <div class="flex items-center gap-2 mb-3 text-xs text-gray-400">
+                <span id="exportCounter" class="text-amber-500">1 / 1</span>
+                <button id="btnPrevChar" onclick="prevExportChar()" class="px-2 py-0.5 border border-gray-600 rounded hover:bg-zinc-800 cursor-pointer">◀</button>
+                <button id="btnNextChar" onclick="nextExportChar()" class="px-2 py-0.5 border border-gray-600 rounded hover:bg-zinc-800 cursor-pointer">▶</button>
+            </div>
+            <textarea id="exportTextarea" class="w-full h-64 font-mono p-5 mb-4 text-sm leading-relaxed bg-black text-white border border-white rounded resize-none" readonly></textarea>
+            <div class="flex justify-between gap-2 text-xs">
+                <button onclick="exportAsImage()" class="px-4 py-2 btn-gold rounded">🖼 导出图片</button>
+                <button onclick="exportAsText()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900">📄 导出文本</button>
+                <button onclick="openExportSelectModal()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900">📋 导出更多</button>
+                <button onclick="closeExportModal()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900 ml-auto">关闭</button>
+            </div>
         </div>
     </div>
 
-    <script>
+    <!-- 导出角色选择弹窗 -->
+    <div id="exportSelectModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" style="display: none;">
+        <div class="bg-[#0f0f0f] border border-white rounded-lg w-full max-w-md p-5">
+            <h3 class="text-md font-bold mb-3 tracking-wide">选择要导出的角色</h3>
+            <div class="mb-3">
+                <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleExportSelectAll()" class="accent-amber-600"> 全选
+                </label>
+            </div>
+            <div id="exportCheckboxList" class="max-h-64 overflow-y-auto space-y-2 mb-4 text-sm">
+                <!-- 动态渲染 -->
+            </div>
+            <div class="flex justify-end gap-2 text-xs">
+                <button onclick="closeExportSelectModal()" class="px-4 py-2 border border-white rounded hover:bg-zinc-900">取消</button>
+                <button onclick="confirmExportSelect()" class="px-4 py-2 btn-gold rounded">确认</button>
+            </div>
+        </div>
+    </div>
+
+   <script>
         let characters = [];
         let selectedId = null;
         let isSidebarOpen = false;
@@ -115,30 +173,17 @@
         };
         const colorOrder = ['white', 'red', 'blue', 'purple', 'green'];
 
-        let draggedCharId = null;
-        let draggedSkillIndex = null;
+       let draggedCharId = null;
+       let draggedSkillIndex = null;
 
         window.onload = function() {
             const localData = localStorage.getItem('lok_entrance_data');
             if (localData) {
                 try { 
-                    characters = JSON.parse(localData); 
-                    if (!Array.isArray(characters)) { characters = []; }
-                    
-                    characters.forEach(c => {
-                        if (c && !c.skills) {
-                            c.skills = [];
-                            if (c.passive) c.skills.push({ type: 'passive', symbol: '⎔', name: c.passive.name||'', desc: c.passive.desc||'', color: 'white' });
-                            if (c.normal) c.skills.push({ type: 'normal', symbol: '□', name: c.normal.name||'', desc: c.normal.desc||'', color: 'white' });
-                            if (c.actives) {
-                                c.actives.forEach(act => {
-                                    if(act) c.skills.push({ type: 'active', symbol: 'ᐅ', name: act.name||'', desc: act.desc||'', color: 'white' });
-                                });
-                            }
-                            delete c.passive; delete c.normal; delete c.actives;
-                        }
-                    });
-                    autoSave();
+                   characters = JSON.parse(localData); 
+                   if (!Array.isArray(characters)) { characters = []; }
+                  
+                   autoSave();
                 } catch(e) { 
                     characters = []; 
                 }
@@ -297,22 +342,23 @@
 
                 const row1 = `
                     <div class="flex gap-3 mb-5">
-                        <input type="text" placeholder="名字" class="w-1/2 font-bold text-base" value="${nameVal}" oninput="updateField('${char.id}', 'name', this.value)">
-                        <input type="text" placeholder="英文名" class="w-1/2 font-mono text-base" value="${engNameVal}" oninput="updateField('${char.id}', 'engName', this.value)">
+                        <input type="text" class="w-1/2 font-bold text-base" value="${nameVal}" oninput="updateField('${char.id}', 'name', this.value)">
+                        <input type="text" class="w-1/2 font-mono text-base" value="${engNameVal}" oninput="updateField('${char.id}', 'engName', this.value)">
                     </div>
                 `;
 
-                const attrKeys = ['HP', 'MP', 'ATK', 'DEF', 'RES', 'RAN', 'MOV', 'Cls', 'Orig'];
-                let attrGrid = `<div class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2 mb-5">`;
-                attrKeys.forEach(k => {
-                    const attrVal = (char.attrs && char.attrs[k]) ? char.attrs[k] : '';
-                    attrGrid += `
-                        <div class="flex flex-col border border-zinc-800 rounded p-1 bg-black">
-                            <span class="text-[10px] text-gray-400 font-bold tracking-tight text-center">${k}</span>
-                            <input type="text" class="w-full text-center border-0 p-0 text-sm bg-transparent focus:outline-none" value="${attrVal}" oninput="updateAttr('${char.id}', '${k}', this.value)">
-                        </div>
-                    `;
-                });
+               const attrKeys = ['HP', 'MP', 'ATK', 'DEF', 'RES', 'RAN', 'MOV', 'Cls', 'Orig'];
+               const attrPlaceholders = {HP:'生命值',MP:'法力值',ATK:'攻击力',DEF:'防御力',RES:'元素抗性',RAN:'射程',MOV:'移动力',Cls:'职业',Orig:'起源'};
+               let attrGrid = `<div class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2 mb-5">`;
+               attrKeys.forEach(k => {
+                   const attrVal = (char.attrs && char.attrs[k]) ? char.attrs[k] : '';
+                   attrGrid += `
+                       <div class="flex flex-col border border-zinc-800 rounded p-1 bg-black">
+                           <span class="text-[10px] text-gray-400 font-bold tracking-tight text-center">${k}</span>
+                            <input type="text" placeholder="${attrPlaceholders[k]}" class="w-full text-center border-0 p-0 text-sm bg-transparent focus:outline-none" value="${attrVal}" oninput="updateAttr('${char.id}', '${k}', this.value)">
+                       </div>
+                   `;
+               });
                 attrGrid += `</div>`;
 
                 let skillsDiv = `<div class="space-y-2.5">`;
@@ -335,7 +381,7 @@
                             
                             <div class="w-28 shrink-0 flex items-center gap-1 cursor-grab active:cursor-grabbing bg-[#0f0f0f] border border-white rounded px-1.5 py-1">
                                 <span class="text-zinc-500 select-none text-xs font-mono">⋮⋮</span>
-                                <input type="text" placeholder="技能" class="w-full text-center bg-transparent border-0 p-0 text-sm focus:outline-none font-medium" value="${skName}" 
+                                <input type="text" class="w-full text-center bg-transparent border-0 p-0 text-sm focus:outline-none font-medium" value="${skName}" 
                                        oninput="updateSkillData('${char.id}', ${sIdx}, 'name', this.value)"
                                        onmousedown="event.stopPropagation()">
                             </div>
@@ -347,7 +393,7 @@
                                 ${skill.symbol}
                             </button>
                             
-                            <textarea placeholder="描述" class="flex-1 resize-none overflow-hidden min-h-[34px] py-1.5 leading-relaxed" rows="1"
+                            <textarea class="flex-1 resize-none overflow-hidden min-h-[34px] py-1.5 leading-relaxed" rows="1"
                                       oninput="adjustTextareaHeight(this); updateSkillData('${char.id}', ${sIdx}, 'desc', this.value)"
                                       onmousedown="event.stopPropagation()">${skDesc}</textarea>
                             
@@ -458,21 +504,145 @@
             element.style.display = 'none';
             document.body.appendChild(element);
             element.click();
-            document.body.removeChild(element);
+           document.body.removeChild(element);
+       }
+
+        let exportCharIds = [];
+        let exportCharIndex = 0;
+
+        function openExportModal() {
+            if (!selectedId) return alert('请先选中一个角色');
+            exportCharIds = [selectedId];
+            exportCharIndex = 0;
+            updateExportTextarea();
+            const modal = document.getElementById('exportModal');
+            if(modal) modal.style.display = 'flex';
         }
 
-        function exportSelected() {
-            const c = characters.find(item => item.id === selectedId);
-            if(c) downloadTxt(`${c.name || '未命名'}.txt`, buildText(c));
+        function closeExportModal() {
+            const modal = document.getElementById('exportModal');
+            if(modal) modal.style.display = 'none';
         }
 
-        function exportAll() {
-            if(!characters || characters.length === 0) return alert('没有可导出的数据');
-            let allText = characters.map(c => buildText(c)).join('\n---\n\n');
-            downloadTxt(`LoK_All_Roles.txt`, allText);
+        function updateExportTextarea() {
+            const ta = document.getElementById('exportTextarea');
+            const counter = document.getElementById('exportCounter');
+            const btnPrev = document.getElementById('btnPrevChar');
+            const btnNext = document.getElementById('btnNextChar');
+            if (!ta || exportCharIds.length === 0) return;
+            const c = characters.find(item => item.id === exportCharIds[exportCharIndex]);
+            if (c) {
+                ta.value = buildText(c);
+                counter.textContent = exportCharIndex + 1 + ' / ' + exportCharIds.length;
+                btnPrev.disabled = exportCharIndex <= 0;
+                btnNext.disabled = exportCharIndex >= exportCharIds.length - 1;
+            }
         }
 
-        function openImportModal() { 
+        function prevExportChar() {
+            if (exportCharIndex > 0) { exportCharIndex--; updateExportTextarea(); }
+        }
+
+        function nextExportChar() {
+            if (exportCharIndex < exportCharIds.length - 1) { exportCharIndex++; updateExportTextarea(); }
+        }
+
+        function openExportSelectModal() {
+            const list = document.getElementById('exportCheckboxList');
+            const selectAll = document.getElementById('selectAllCheckbox');
+            if (!list) return;
+            list.innerHTML = '';
+            characters.forEach(c => {
+                const checked = exportCharIds.indexOf(c.id) !== -1 ? 'checked' : '';
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-2';
+                div.innerHTML = '<input type=\"checkbox\" class=\"export-checkbox accent-amber-600\" value=\"' + c.id + '\" ' + checked + '> <span class=\"text-sm\">' + (c.name || c.engName || '未命名') + '</span>';
+                list.appendChild(div);
+            });
+            const allChecked = characters.every(c => exportCharIds.indexOf(c.id) !== -1);
+            selectAll.checked = allChecked;
+            const modal = document.getElementById('exportSelectModal');
+            if(modal) modal.style.display = 'flex';
+        }
+
+        function closeExportSelectModal() {
+            const modal = document.getElementById('exportSelectModal');
+            if(modal) modal.style.display = 'none';
+        }
+
+        function toggleExportSelectAll() {
+            const checked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('.export-checkbox').forEach(cb => cb.checked = checked);
+        }
+
+        function confirmExportSelect() {
+            const checkedBoxes = document.querySelectorAll('.export-checkbox:checked');
+            exportCharIds = Array.from(checkedBoxes).map(cb => cb.value);
+            closeExportSelectModal();
+            if (exportCharIds.length === 0) {
+                alert('请至少选择一个角色');
+                return;
+            }
+            exportCharIndex = 0;
+            updateExportTextarea();
+            const modal = document.getElementById('exportModal');
+            if(modal) modal.style.display = 'flex';
+        }
+
+        function exportAsText() {
+            const c = characters.find(item => item.id === exportCharIds[exportCharIndex]);
+            if(c) downloadTxt((c.name || '未命名') + '.txt', buildText(c));
+        }
+
+        function exportAsImage() {
+            const c = characters.find(item => item.id === exportCharIds[exportCharIndex]);
+            if (!c) return;
+
+            const cardDiv = document.createElement('div');
+            cardDiv.style.cssText = 'background:#000;color:#fff;padding:32px;font-family:sans-serif;width:480px;border:1px solid #9a7b36;border-radius:8px;';
+
+            const nameHtml = '<div style=\"font-size:24px;font-weight:bold;border-bottom:1px solid rgba(154,123,54,0.5);padding-bottom:12px;margin-bottom:16px;\">' + (c.name || '') + ' <span style=\"color:#a1a1aa;font-size:16px;\">' + (c.engName || '') + '</span></div>';
+
+            const attrKeys = ['HP','MP','ATK','DEF','RES','RAN','MOV','Cls','Orig'];
+            const attrLabels = {HP:'生命值',MP:'法力值',ATK:'攻击力',DEF:'防御力',RES:'元素抗性',RAN:'射程',MOV:'移动力',Cls:'职业',Orig:'起源'};
+            let attrHtml = '<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;\">';
+            attrKeys.forEach(k => {
+                const v = (c.attrs && c.attrs[k]) ? c.attrs[k] : '-';
+                attrHtml += '<div style=\"border:1px solid #333;border-radius:4px;padding:6px;text-align:center;\"><div style=\"font-size:10px;color:#a1a1aa;\">' + attrLabels[k] + '</div><div style=\"font-size:14px;font-weight:bold;\">' + v + '</div></div>';
+            });
+            attrHtml += '</div>';
+
+            const colorMap = {white:'#a1a1aa',red:'#ef4444',blue:'#3b82f6',purple:'#a855f7',green:'#10b981'};
+            let skillHtml = '<div style=\"border-top:1px solid rgba(154,123,54,0.3);padding-top:12px;\">';
+            (c.skills || []).forEach(s => {
+                const hex = colorMap[s.color || 'white'] || '#a1a1aa';
+                skillHtml += '<div style=\"display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;\"><span style=\"font-size:20px;font-weight:bold;color:' + hex + ';min-width:24px;text-align:center;\">' + s.symbol + '</span><div><div style=\"font-weight:bold;font-size:13px;\">' + (s.name || '') + '</div><div style=\"color:#a1a1aa;font-size:12px;\">' + (s.desc || '') + '</div></div></div>';
+            });
+            skillHtml += '</div>';
+
+            cardDiv.innerHTML = nameHtml + attrHtml + skillHtml;
+            cardDiv.style.position = 'absolute';
+            cardDiv.style.left = '-9999px';
+            document.body.appendChild(cardDiv);
+
+            if (typeof html2canvas !== 'undefined') {
+                html2canvas(cardDiv, { backgroundColor: '#000000', scale: 2 }).then(function(canvas) {
+                    const link = document.createElement('a');
+                    link.download = (c.name || '未命名') + '.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    document.body.removeChild(cardDiv);
+                }).catch(function() {
+                    document.body.removeChild(cardDiv);
+                    alert('图片生成失败');
+                });
+            } else {
+                document.body.removeChild(cardDiv);
+                alert('html2canvas 未加载');
+            }
+        }
+
+       function openImportModal() {
             const modal = document.getElementById('importModal');
             if(modal) modal.style.display = 'flex'; 
         }
@@ -617,3 +787,5 @@
     </script>
 </body>
 </html>
+
+

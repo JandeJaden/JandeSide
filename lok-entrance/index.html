@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoK-Entrance</title>
+    <title>LoK-Entrance — JandeSide</title>
+    <meta name="description" content="LoK 角色工作台：记录角色属性与技能，导入与导出档案。">
+    <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
    <!-- 引入 Tailwind CSS -->
    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- 引入 html2canvas（导出图片用） -->
@@ -69,9 +71,18 @@
             border: 1px dashed #846522 !important;
             background-color: #0a0a0a !important;
         }
+        .lok-site-nav { display:flex; align-items:center; justify-content:space-between; max-width:768px; margin:0 auto 28px; padding:12px 0 20px; border-bottom:1px solid #353d34; font-size:12px; color:#c9d0bd; }
+        .lok-site-nav a { color:inherit; text-decoration:none; }
+        .lok-site-nav a:focus-visible { outline:2px solid #d69d52; outline-offset:5px; }
+        .lok-brand { font-size:20px; font-weight:600; letter-spacing:-.7px; }
+        body { background-color:#101510; }
+        input, textarea { border-color:#66705f; }
+        #characterList > div { scroll-margin-top:20px; }
+        @media (max-width:500px) { .lok-site-nav { font-size:11px; } .lok-brand { font-size:18px; } }
     </style>
 </head>
 <body class="min-h-screen p-4 pb-24 select-none">
+    <nav class="lok-site-nav" aria-label="返回导航"><a class="lok-brand" href="../">JandeSide <span style="color:#bd8158">✳</span></a><a href="../#explore">← 返回小站</a></nav>
 
     <div class="max-w-3xl mx-auto">
         <!-- 顶部标题 -->
